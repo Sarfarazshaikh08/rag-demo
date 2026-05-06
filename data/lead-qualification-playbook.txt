@@ -1,0 +1,21 @@
+A sales lead becomes qualified when the prospect has a defined business problem, decision authority, budget visibility, and a target timeline.
+
+Inbound leads must receive first response within 4 business hours.
+
+Enterprise discovery calls must identify pain points, current process, decision makers, budget range, security requirements, and success criteria.
+
+A lead should be marked high priority when expected annual contract value is above 25 lakh INR or the prospect has a go-live timeline under 60 days.
+
+Pricing discounts up to 10 percent can be approved by the sales manager.
+
+Pricing discounts above 10 percent and up to 20 percent require approval from the business head.
+
+Pricing discounts above 20 percent require approval from the CEO and finance team.
+
+Proposals must include scope, assumptions, exclusions, commercial terms, delivery timeline, support terms, and payment milestones.
+
+No proposal should be sent before technical feasibility and delivery capacity are reviewed.
+
+Sales handoff to delivery must include proposal, meeting notes, stakeholders, risks, commercial commitments, and success metrics.
+
+Lost opportunities above 10 lakh INR must include a loss reason and competitor note in the CRM.

@@ -1,0 +1,21 @@
+Priority 1 support issues must receive first response within 15 minutes.
+
+Priority 1 support issues must have a workaround or resolution plan within 4 hours.
+
+Priority 2 support issues must receive first response within 1 business hour.
+
+Priority 2 support issues must have a workaround or resolution plan within 1 business day.
+
+Priority 3 support issues must receive first response within 4 business hours.
+
+Priority 3 support issues must be resolved or scheduled within 3 business days.
+
+Support tickets must include client name, affected system, business impact, screenshots or logs, priority, and requested outcome.
+
+Production incidents must be documented with timeline, impact, root cause, corrective action, and prevention action.
+
+Any repeated incident within 30 days must be reviewed by support operations and delivery engineering.
+
+Client communication during Priority 1 incidents must be updated every 60 minutes until a workaround is confirmed.
+
+SLA breach risk must be escalated to the support manager before the SLA timer expires.

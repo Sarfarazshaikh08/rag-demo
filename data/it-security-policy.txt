@@ -1,0 +1,23 @@
+Password reset policy: Employees must reset passwords every 90 days.
+
+Passwords must contain at least 12 characters with uppercase letters, lowercase letters, numbers, and symbols.
+
+Multi-factor authentication is mandatory for email, VPN, HRMS, finance systems, and production systems.
+
+Company laptops must use disk encryption and approved endpoint protection.
+
+USB storage devices are not allowed unless approved by the IT security team.
+
+Employees must report suspected phishing emails to the security team within 2 hours.
+
+Lost or stolen devices must be reported to IT and the reporting manager immediately.
+
+Production access is granted only after manager approval and security review.
+
+Shared accounts are prohibited for business systems and production environments.
+
+Confidential data must not be stored on personal cloud drives or personal devices.
+
+VPN must be used when accessing internal systems outside the office network.
+
+Security incidents are reviewed by IT, Legal, and the relevant business owner.

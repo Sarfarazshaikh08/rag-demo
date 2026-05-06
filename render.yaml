@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: solvagence-rag-demo
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: ENABLE_GEMINI
+        value: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OBJECT_STORAGE_PROVIDER
+        value: local
+      - key: OCR_ENABLED
+        value: false
+      - key: ENABLE_POSTGRES
+        value: false
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: REVIEWER_USER
+        value: reviewer
+      - key: REVIEWER_PASSWORD_HASH
+        sync: false
+      - key: VIEWER_USER
+        value: viewer
+      - key: VIEWER_PASSWORD_HASH
+        sync: false

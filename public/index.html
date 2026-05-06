@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solvagence KnowledgeOps</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #18212f;
+      --muted: #657386;
+      --line: #dce3eb;
+      --brand: #0f766e;
+      --brand-dark: #115e59;
+      --nav: #101828;
+      --accent: #2457c5;
+      --gold: #a16207;
+      --ok: #0f766e;
+      --bad: #9f1239;
+      --soft: #edf7f5;
+      --shadow: 0 14px 36px rgba(16, 24, 40, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      height: 100%;
+      font-family: Inter, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    button, textarea, input, select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .shell {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 300px minmax(460px, 1fr) 380px;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      background: var(--nav);
+      color: white;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .muted, .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .sidebar .muted {
+      color: #aab4c3;
+    }
+
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 12px;
+      color: #aab4c3;
+      text-transform: uppercase;
+    }
+
+    .use-cases {
+      display: grid;
+      gap: 8px;
+    }
+
+    .use-cases button {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #eef4ff;
+      text-align: left;
+      font-weight: 700;
+    }
+
+    .use-cases button.active {
+      background: #e8f5f2;
+      color: var(--brand-dark);
+      border-color: #8bd4c8;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 6px;
+      color: #aab4c3;
+      font-size: 12px;
+    }
+
+    .upload-panel {
+      margin-top: auto;
+      display: grid;
+      gap: 10px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .login-panel {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .upload-panel input,
+    .upload-panel select,
+    .login-panel input {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+    }
+
+    .login-panel input::placeholder {
+      color: #aab4c3;
+    }
+
+    .upload-panel select option {
+      color: var(--ink);
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      background: var(--brand);
+      color: white;
+      font-weight: 800;
+    }
+
+    .btn:hover {
+      background: var(--brand-dark);
+    }
+
+    .btn.secondary {
+      background: #e9eef6;
+      color: #1f2937;
+    }
+
+    .btn.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: #243044;
+    }
+
+    .workspace {
+      padding: 26px;
+      min-width: 0;
+      min-height: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    h2, h3 {
+      margin: 0;
+    }
+
+    .topbar h2 {
+      font-size: 27px;
+      line-height: 1.15;
+    }
+
+    .status-pill {
+      white-space: nowrap;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: var(--soft);
+      color: var(--brand-dark);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .value-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .value-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel);
+      box-shadow: 0 8px 20px rgba(16, 24, 40, 0.04);
+    }
+
+    .value-card strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .value-card span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chat-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .conversation {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-right: 4px;
+    }
+
+    .message {
+      max-width: 86%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfd;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: #eaf2ff;
+      border-color: #c8dcff;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+    }
+
+    .composer {
+      display: grid;
+      gap: 10px;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 92px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 13px;
+      color: var(--ink);
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(36, 87, 197, 0.12);
+    }
+
+    .quick-questions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .quick-questions button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 11px;
+      background: white;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .composer-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .insights {
+      min-width: 0;
+      min-height: 0;
+      height: 100vh;
+      background: #ffffff;
+      border-left: 1px solid var(--line);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      overflow: hidden;
+    }
+
+    .insights .panel {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .insights .panel:nth-of-type(1),
+    .insights .panel:nth-of-type(2),
+    .insights .panel:nth-of-type(4) {
+      flex: 1;
+    }
+
+    .insights .panel:nth-of-type(3) {
+      flex: 0 0 auto;
+    }
+
+    .panel h3 {
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+
+    .document-list, .source-list, .audit-list {
+      display: grid;
+      gap: 10px;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .doc-item, .source-card, .audit-card, .admin-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfd;
+    }
+
+    .doc-name, .source-card strong, .audit-card strong {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .doc-meta, .source-card p, .audit-card p, .admin-card p {
+      margin: 0;
+      color: #465568;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .trust {
+      display: inline-block;
+      margin-top: 8px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #e8f5f2;
+      color: var(--ok);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .trust.draft {
+      background: #fef3c7;
+      color: var(--gold);
+    }
+
+    .trust.review {
+      background: #eaf2ff;
+      color: var(--accent);
+    }
+
+    .trust.archived {
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+
+    .doc-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .doc-actions button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      background: #ffffff;
+      color: #243044;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .audit-card .status {
+      margin-top: 8px;
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .danger {
+      color: var(--bad);
+      font-weight: 800;
+    }
+
+    .admin-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .editor-panel {
+      display: none;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .editor-panel.active {
+      display: grid;
+    }
+
+    .editor-panel input,
+    .editor-panel select,
+    .editor-panel textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--ink);
+      background: #ffffff;
+    }
+
+    .editor-panel textarea {
+      min-height: 180px;
+    }
+
+    @media (max-width: 1180px) {
+      .shell {
+        grid-template-columns: 280px 1fr;
+      }
+
+      .insights {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+
+    @media (max-width: 820px) {
+      .shell {
+        display: block;
+        height: auto;
+        overflow: visible;
+      }
+
+      .sidebar, .workspace, .insights {
+        padding: 18px;
+        height: auto;
+        overflow: visible;
+      }
+
+      .topbar, .composer-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .value-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .message {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="brand-logo" src="/solvagence-logo.png" alt="Solvagence logo">
+        <div>
+          <h1>Solvagence KnowledgeOps</h1>
+          <p class="muted">Verified answers from approved business knowledge</p>
+        </div>
+      </div>
+
+      <section class="login-panel">
+        <p class="section-title">Admin / Reviewer Login</p>
+        <input id="adminUser" type="text" placeholder="Username" value="admin">
+        <input id="adminPassword" type="password" placeholder="Password">
+        <button class="btn" id="loginButton" onclick="loginAdmin()">Login</button>
+        <button class="btn secondary" id="logoutButton" onclick="logoutAdmin()" style="display: none;">Logout</button>
+        <p class="muted" id="authStatus">Viewer mode. Admin approval is locked.</p>
+      </section>
+
+      <section>
+        <p class="section-title">Use Case</p>
+        <div class="use-cases" id="useCases"></div>
+      </section>
+
+      <section>
+        <p class="section-title">Value Metrics</p>
+        <div class="metrics">
+          <div class="metric"><strong id="metricDocs">0</strong><span>Approved docs</span></div>
+          <div class="metric"><strong id="metricChunks">0</strong><span>Indexed clauses</span></div>
+          <div class="metric"><strong id="metricCitations">100%</strong><span>Citation rate</span></div>
+          <div class="metric"><strong id="metricHallucinations">0</strong><span>Hallucinations</span></div>
+        </div>
+      </section>
+
+      <section class="upload-panel">
+        <p class="section-title">Add Client Asset</p>
+        <input id="fileInput" type="file" accept=".txt,.md,.csv,.pdf">
+        <input id="ownerInput" type="text" placeholder="Document owner" value="Knowledge Admin">
+        <select id="department">
+          <option>Client Delivery</option>
+          <option>Sales</option>
+          <option>Support</option>
+          <option>Human Resources</option>
+          <option>Finance</option>
+          <option>Legal</option>
+          <option>General</option>
+        </select>
+        <select id="uploadUseCase">
+          <option>Client Delivery Assistant</option>
+          <option>Sales Assistant</option>
+          <option>Support Assistant</option>
+          <option>HR Assistant</option>
+          <option>General Assistant</option>
+        </select>
+        <button class="btn" onclick="uploadDocument()">Upload as Draft</button>
+        <p class="muted" id="uploadStatus">Draft uploads persist locally and become searchable only after approval.</p>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <div class="topbar">
+        <div>
+          <h2>Solvagence Enterprise Knowledge Showcase</h2>
+          <p class="muted">A reusable assistant for HR, Sales, Delivery, and Support teams with citations, approval metadata, and audit history.</p>
+        </div>
+        <div class="status-pill" id="kbStatus">Loading knowledge base</div>
+      </div>
+
+      <div class="value-strip">
+        <div class="value-card"><strong>Tenant-ready</strong><span>Documents are grouped by owner and use case</span></div>
+        <div class="value-card"><strong>Traceable</strong><span>Every answer carries source evidence</span></div>
+        <div class="value-card"><strong>Controlled</strong><span>Unknown questions are refused</span></div>
+        <div class="value-card"><strong>Auditable</strong><span>Queries are logged for review</span></div>
+      </div>
+
+      <section class="chat-panel">
+        <div class="conversation" id="conversation">
+          <div class="message assistant">
+            Ask a Solvagence business question. I will answer only from approved knowledge assets and cite the exact source.
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="quick-questions" id="quickQuestions"></div>
+          <textarea id="question" placeholder="Ask about HR, sales qualification, delivery escalation, support SLA, or client onboarding..."></textarea>
+          <div class="composer-actions">
+            <p class="muted" id="userLabel">Signed in as: Solvagence Demo User</p>
+            <button class="btn" onclick="ask()">Ask KnowledgeOps</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="insights">
+      <section class="panel">
+        <h3>Knowledge Assets</h3>
+        <div class="document-list" id="documents"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Source Trust Panel</h3>
+        <div id="sources" class="source-list">
+          <p class="empty">Source evidence appears after an answer.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Admin Controls</h3>
+        <div class="admin-card">
+          <div class="admin-actions">
+            <button class="btn secondary" onclick="reindex()">Re-index</button>
+            <button class="btn ghost" onclick="exportAudit()">Export Audit</button>
+          </div>
+          <p id="adminStatus" class="muted" style="margin-top: 10px;">Knowledge base is ready.</p>
+          <div class="editor-panel" id="editorPanel">
+            <input id="editName" type="text" placeholder="Document name">
+            <input id="editOwner" type="text" placeholder="Owner">
+            <select id="editDepartment">
+              <option>Client Delivery</option>
+              <option>Sales</option>
+              <option>Support</option>
+              <option>Human Resources</option>
+              <option>Finance</option>
+              <option>Legal</option>
+              <option>General</option>
+            </select>
+            <select id="editUseCase">
+              <option>Client Delivery Assistant</option>
+              <option>Sales Assistant</option>
+              <option>Support Assistant</option>
+              <option>HR Assistant</option>
+              <option>General Assistant</option>
+            </select>
+            <textarea id="editContent" placeholder="Document content"></textarea>
+            <div class="admin-actions">
+              <button class="btn" onclick="saveDocumentEdit()">Save</button>
+              <button class="btn ghost" onclick="closeEditor()">Cancel</button>
+            </div>
+          </div>
+          <div class="editor-panel" id="reviewPanel">
+            <textarea id="reviewComment" placeholder="Add review comment"></textarea>
+            <div class="admin-actions">
+              <button class="btn" onclick="addReviewComment()">Add Comment</button>
+              <button class="btn ghost" onclick="closeReview()">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Audit Log</h3>
+        <div id="audit" class="audit-list">
+          <p class="empty">No questions recorded yet.</p>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    const useCaseQuestions = {
+      "All": [
+        "When should a project be escalated?",
+        "What is the SLA for a P1 support issue?",
+        "When does a sales lead become qualified?",
+        "What documents are needed before client onboarding?"
+      ],
+      "HR Assistant": [
+        "How many paid leaves do employees get?",
+        "Can employees work remotely?",
+        "What proof is required for sick leave?",
+        "What is the dress code?"
+      ],
+      "Sales Assistant": [
+        "When does a sales lead become qualified?",
+        "Who approves pricing discounts above 15%?",
+        "What must be included in a proposal?",
+        "When is a lead high priority?"
+      ],
+      "Client Delivery Assistant": [
+        "What documents are needed before client onboarding?",
+        "When should a project be escalated?",
+        "What is required for escalation closure?",
+        "When must weekly status reports be sent?"
+      ],
+      "Support Assistant": [
+        "What is the SLA for a P1 support issue?",
+        "How often should clients be updated during P1 incidents?",
+        "What details must a support ticket include?",
+        "When should passwords be reset?"
+      ]
+    };
+
+    const useCases = Object.keys(useCaseQuestions);
+    const routeUseCaseAliases = {
+      all: "All",
+      hr: "HR Assistant",
+      humanresources: "HR Assistant",
+      "human-resources": "HR Assistant",
+      support: "Support Assistant",
+      sales: "Sales Assistant",
+      delivery: "Client Delivery Assistant",
+      "client-delivery": "Client Delivery Assistant",
+      clientdelivery: "Client Delivery Assistant"
+    };
+
+    function useCaseFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const requested = (params.get("useCase") || params.get("demo") || "").trim().toLowerCase();
+
+      if (routeUseCaseAliases[requested]) {
+        return routeUseCaseAliases[requested];
+      }
+
+      const readable = requested
+        .split(/[-_\s]+/)
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+
+      return useCases.includes(readable) ? readable : "All";
+    }
+
+    let activeUseCase = useCaseFromUrl();
+    let currentDocuments = [];
+    let currentUser = null;
+    let editingDocumentId = null;
+    let reviewingDocumentId = null;
+
+    const questionInput = document.getElementById("question");
+    const conversation = document.getElementById("conversation");
+    const sourcesEl = document.getElementById("sources");
+    const auditEl = document.getElementById("audit");
+    const documentsEl = document.getElementById("documents");
+    const kbStatus = document.getElementById("kbStatus");
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function addMessage(type, text) {
+      const message = document.createElement("div");
+      message.className = "message " + type;
+      message.textContent = text;
+      conversation.appendChild(message);
+      conversation.scrollTop = conversation.scrollHeight;
+      return message;
+    }
+
+    function setQuestion(question) {
+      questionInput.value = question;
+      questionInput.focus();
+    }
+
+    function renderUseCases() {
+      document.getElementById("useCases").innerHTML = useCases.map(useCase => `
+        <button class="${useCase === activeUseCase ? "active" : ""}" onclick="setUseCase('${escapeHtml(useCase)}')">${escapeHtml(useCase)}</button>
+      `).join("");
+    }
+
+    function renderQuickQuestions() {
+      document.getElementById("quickQuestions").innerHTML = useCaseQuestions[activeUseCase].map(question => `
+        <button onclick="setQuestion('${escapeHtml(question)}')">${escapeHtml(question)}</button>
+      `).join("");
+    }
+
+    function setUseCase(useCase) {
+      activeUseCase = useCase;
+      const params = new URLSearchParams(window.location.search);
+      const alias = Object.entries(routeUseCaseAliases)
+        .find(([, value]) => value === useCase)?.[0] || "all";
+      params.set("useCase", alias);
+      window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+      renderUseCases();
+      renderQuickQuestions();
+      renderDocuments();
+      sourcesEl.innerHTML = '<p class="empty">Source evidence appears after an answer.</p>';
+    }
+
+    function renderMetrics(metrics) {
+      document.getElementById("metricDocs").textContent = metrics.approvedDocuments;
+      document.getElementById("metricChunks").textContent = metrics.chunks;
+      document.getElementById("metricCitations").textContent = `${metrics.citationRate}%`;
+      document.getElementById("metricHallucinations").textContent = metrics.hallucinatedAnswers;
+    }
+
+    function renderDocuments() {
+      const visibleDocs = activeUseCase === "All"
+        ? currentDocuments
+        : currentDocuments.filter(doc => doc.useCase === activeUseCase);
+
+      if (!visibleDocs.length) {
+        documentsEl.innerHTML = '<p class="empty">No approved assets for this use case yet.</p>';
+        return;
+      }
+
+      documentsEl.innerHTML = visibleDocs.map(doc => `
+        <article class="doc-item">
+          <p class="doc-name">${escapeHtml(doc.name)}</p>
+          <p class="doc-meta">${escapeHtml(doc.department)} • ${escapeHtml(doc.version)} • ${doc.chunks} clauses<br>Owner: ${escapeHtml(doc.owner)}<br>${doc.searchable ? "Searchable" : "Not searchable"} • ${doc.characters.toLocaleString()} chars<br>${doc.comments.length} comments • ${doc.versionCount} versions</p>
+          <span class="trust ${statusClass(doc.approvalStatus)}">${escapeHtml(doc.approvalStatus)}</span>
+          ${renderDocumentComments(doc)}
+          ${renderDocumentActions(doc)}
+        </article>
+      `).join("");
+    }
+
+    function renderDocumentComments(doc) {
+      if (!currentUser || !doc.comments || !doc.comments.length) {
+        return "";
+      }
+
+      const latest = doc.comments[0];
+      return `<p class="doc-meta" style="margin-top: 8px;">Latest: ${escapeHtml(latest.actor)} - ${escapeHtml(latest.comment)}</p>`;
+    }
+
+    function statusClass(status) {
+      if (status === "Draft") return "draft";
+      if (status === "In Review") return "review";
+      if (status === "Archived") return "archived";
+      return "";
+    }
+
+    function renderDocumentActions(doc) {
+      if (!currentUser || !["admin", "reviewer"].includes(currentUser.role)) {
+        return "";
+      }
+
+      const actions = [`<button onclick="reviewDocument('${doc.id}')">Comment</button>`];
+
+      if (currentUser.role !== "admin") {
+        return `<div class="doc-actions">${actions.join("")}</div>`;
+      }
+
+      actions.push(`<button onclick="editDocument('${doc.id}')">Edit</button>`);
+
+      if (doc.source !== "uploaded") {
+        return `<div class="doc-actions">${actions.join("")}</div>`;
+      }
+
+      if (doc.approvalStatus === "Draft") {
+        actions.push(`<button onclick="setDocumentStatus('${doc.id}', 'In Review')">Submit</button>`);
+      }
+
+      if (doc.approvalStatus === "Draft" || doc.approvalStatus === "In Review") {
+        actions.push(`<button onclick="setDocumentStatus('${doc.id}', 'Approved')">Approve</button>`);
+      }
+
+      if (doc.approvalStatus !== "Archived") {
+        actions.push(`<button onclick="setDocumentStatus('${doc.id}', 'Archived')">Archive</button>`);
+      }
+
+      if (doc.approvalStatus === "Archived") {
+        actions.push(`<button onclick="setDocumentStatus('${doc.id}', 'Draft')">Restore</button>`);
+      }
+
+      actions.push(`<button onclick="deleteDocument('${doc.id}')">Delete</button>`);
+
+      return `<div class="doc-actions">${actions.join("")}</div>`;
+    }
+
+    function renderAuth() {
+      const isPrivileged = currentUser && ["admin", "reviewer"].includes(currentUser.role);
+      document.getElementById("loginButton").style.display = isPrivileged ? "none" : "block";
+      document.getElementById("logoutButton").style.display = isPrivileged ? "block" : "none";
+      document.getElementById("authStatus").textContent = isPrivileged
+        ? `${currentUser.role === "admin" ? "Admin" : "Reviewer"} mode: ${currentUser.username}`
+        : "Viewer mode. Approval and review are locked.";
+      renderDocuments();
+    }
+
+    async function loadAuth() {
+      const res = await fetch("/auth/me");
+      const data = await res.json();
+      currentUser = data.user;
+      renderAuth();
+    }
+
+    async function loginAdmin() {
+      const username = document.getElementById("adminUser").value.trim();
+      const password = document.getElementById("adminPassword").value;
+      const status = document.getElementById("authStatus");
+      status.textContent = "Checking admin credentials...";
+
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Login failed");
+        }
+
+        currentUser = data.user;
+        document.getElementById("adminPassword").value = "";
+        renderAuth();
+        await loadDocuments();
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    }
+
+    async function logoutAdmin() {
+      await fetch("/auth/logout", { method: "POST" });
+      currentUser = null;
+      closeEditor();
+      closeReview();
+      renderAuth();
+      await loadDocuments();
+    }
+
+    async function loadDocuments() {
+      const res = await fetch("/documents");
+      const data = await res.json();
+
+      currentDocuments = data.documents;
+      kbStatus.textContent = `${data.documents.length} assets, ${data.chunks} indexed clauses`;
+      renderMetrics(data.metrics);
+      renderDocuments();
+    }
+
+    async function loadAudit() {
+      const res = await fetch("/audit");
+      const data = await res.json();
+
+      if (!data.entries.length) {
+        auditEl.innerHTML = '<p class="empty">No questions recorded yet.</p>';
+        return;
+      }
+
+      auditEl.innerHTML = data.entries.map(entry => `
+        <article class="audit-card">
+          <strong>${escapeHtml(entry.question)}</strong>
+          <p>${escapeHtml(entry.user)} • ${escapeHtml(entry.userDepartment)} • ${escapeHtml(entry.useCase || "All")}</p>
+          <p>${escapeHtml(entry.source)} • ${new Date(entry.createdAt).toLocaleString()}</p>
+          <p class="status">${escapeHtml(entry.status)}</p>
+        </article>
+      `).join("");
+    }
+
+    function renderSources(sources) {
+      if (!sources || !sources.length) {
+        sourcesEl.innerHTML = '<p class="empty danger">No approved source found for this question.</p>';
+        return;
+      }
+
+      sourcesEl.innerHTML = sources.map((source, index) => `
+        <article class="source-card">
+          <strong>${index + 1}. ${escapeHtml(source.documentName)}</strong>
+          <p>${escapeHtml(source.department)} • ${escapeHtml(source.version)} • Reference ${source.page}</p>
+          <p>Owner: ${escapeHtml(source.owner)} • Reviewed ${escapeHtml(source.reviewedAt)} • ${escapeHtml(source.approvalStatus)}</p>
+          <p>${escapeHtml(source.text)}</p>
+        </article>
+      `).join("");
+    }
+
+    async function ask() {
+      const question = questionInput.value.trim();
+
+      if (!question) {
+        addMessage("assistant", "Please enter a question first.");
+        return;
+      }
+
+      addMessage("user", question);
+      questionInput.value = "";
+      const pending = addMessage("assistant", "Checking approved Solvagence assets...");
+      sourcesEl.innerHTML = '<p class="empty">Retrieving source evidence...</p>';
+
+      try {
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question,
+            useCase: activeUseCase,
+            user: "Solvagence Demo User",
+            userDepartment: "Business Operations"
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Server error");
+        }
+
+        pending.textContent = data.answer || "No answer returned.";
+        renderSources(data.sources);
+        await loadAudit();
+        await loadDocuments();
+      } catch (err) {
+        pending.textContent = "Request failed: " + err.message;
+        sourcesEl.innerHTML = '<p class="empty danger">Unable to retrieve sources.</p>';
+      }
+    }
+
+    async function uploadDocument() {
+      const input = document.getElementById("fileInput");
+      const status = document.getElementById("uploadStatus");
+      const department = document.getElementById("department").value;
+      const owner = document.getElementById("ownerInput").value.trim() || "Knowledge Admin";
+      const useCase = document.getElementById("uploadUseCase").value;
+      const file = input.files[0];
+
+      if (!file) {
+        status.textContent = "Choose a document first.";
+        return;
+      }
+
+      status.textContent = "Indexing document...";
+
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      let payload;
+
+      if (isPdf) {
+        const arrayBuffer = await file.arrayBuffer();
+        let binary = "";
+        const bytes = new Uint8Array(arrayBuffer);
+
+        for (let i = 0; i < bytes.byteLength; i += 1) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+
+        payload = {
+          name: file.name,
+          fileBase64: btoa(binary),
+          mimeType: file.type || "application/pdf",
+          department,
+          owner,
+          useCase,
+          version: "v1.0"
+        };
+      } else {
+        payload = {
+          name: file.name,
+          content: await file.text(),
+          mimeType: file.type || "text/plain",
+          department,
+          owner,
+          useCase,
+          version: "v1.0"
+        };
+      }
+
+      try {
+        const res = await fetch("/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Upload failed");
+        }
+
+        input.value = "";
+        status.textContent = `${file.name} uploaded as Draft. ${data.extractedCharacters.toLocaleString()} characters extracted. Approve it to make it searchable.`;
+        await loadDocuments();
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    }
+
+    async function setDocumentStatus(id, status) {
+      const adminStatus = document.getElementById("adminStatus");
+      adminStatus.textContent = `Updating document to ${status}...`;
+
+      try {
+        const res = await fetch(`/documents/${id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Status update failed");
+        }
+
+        adminStatus.textContent = `Document marked ${status}.`;
+        await loadDocuments();
+      } catch (err) {
+        adminStatus.textContent = err.message;
+      }
+    }
+
+    function editDocument(id) {
+      const doc = currentDocuments.find(item => item.id === id);
+
+      if (!doc) {
+        return;
+      }
+
+      editingDocumentId = id;
+      document.getElementById("editName").value = doc.name;
+      document.getElementById("editOwner").value = doc.owner;
+      document.getElementById("editDepartment").value = doc.department;
+      document.getElementById("editUseCase").value = doc.useCase;
+      document.getElementById("editContent").value = doc.content || "";
+      document.getElementById("editorPanel").classList.add("active");
+      document.getElementById("adminStatus").textContent = `Editing ${doc.name}`;
+    }
+
+    function closeEditor() {
+      editingDocumentId = null;
+      document.getElementById("editorPanel").classList.remove("active");
+    }
+
+    function reviewDocument(id) {
+      const doc = currentDocuments.find(item => item.id === id);
+
+      if (!doc) {
+        return;
+      }
+
+      reviewingDocumentId = id;
+      document.getElementById("reviewComment").value = "";
+      document.getElementById("reviewPanel").classList.add("active");
+      document.getElementById("adminStatus").textContent = `Reviewing ${doc.name}`;
+    }
+
+    function closeReview() {
+      reviewingDocumentId = null;
+      document.getElementById("reviewPanel").classList.remove("active");
+    }
+
+    async function addReviewComment() {
+      if (!reviewingDocumentId) {
+        return;
+      }
+
+      const adminStatus = document.getElementById("adminStatus");
+      const comment = document.getElementById("reviewComment").value.trim();
+
+      if (!comment) {
+        adminStatus.textContent = "Review comment is required.";
+        return;
+      }
+
+      try {
+        const res = await fetch(`/documents/${reviewingDocumentId}/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ comment })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Comment failed");
+        }
+
+        adminStatus.textContent = "Review comment added.";
+        closeReview();
+        await loadDocuments();
+      } catch (err) {
+        adminStatus.textContent = err.message;
+      }
+    }
+
+    async function saveDocumentEdit() {
+      if (!editingDocumentId) {
+        return;
+      }
+
+      const adminStatus = document.getElementById("adminStatus");
+      adminStatus.textContent = "Saving document...";
+
+      try {
+        const res = await fetch(`/documents/${editingDocumentId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.getElementById("editName").value.trim(),
+            owner: document.getElementById("editOwner").value.trim(),
+            department: document.getElementById("editDepartment").value,
+            useCase: document.getElementById("editUseCase").value,
+            content: document.getElementById("editContent").value
+          })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Save failed");
+        }
+
+        adminStatus.textContent = "Document updated and index refreshed.";
+        closeEditor();
+        await loadDocuments();
+      } catch (err) {
+        adminStatus.textContent = err.message;
+      }
+    }
+
+    async function deleteDocument(id) {
+      const doc = currentDocuments.find(item => item.id === id);
+
+      if (!doc || !confirm(`Delete ${doc.name}?`)) {
+        return;
+      }
+
+      const adminStatus = document.getElementById("adminStatus");
+      adminStatus.textContent = "Deleting document...";
+
+      try {
+        const res = await fetch(`/documents/${id}`, { method: "DELETE" });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Delete failed");
+        }
+
+        adminStatus.textContent = "Document deleted.";
+        await loadDocuments();
+      } catch (err) {
+        adminStatus.textContent = err.message;
+      }
+    }
+
+    async function reindex() {
+      const status = document.getElementById("adminStatus");
+      status.textContent = "Re-indexing knowledge base...";
+
+      const res = await fetch("/admin/reindex", { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        status.textContent = data.error || "Admin login required";
+        return;
+      }
+
+      status.textContent = data.message || "Re-index complete.";
+      await loadDocuments();
+    }
+
+    function exportAudit() {
+      if (!currentUser || currentUser.role !== "admin") {
+        document.getElementById("adminStatus").textContent = "Admin login required to export audit logs.";
+        return;
+      }
+
+      window.location.href = "/audit/export";
+    }
+
+    questionInput.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        ask();
+      }
+    });
+
+    renderUseCases();
+    renderQuickQuestions();
+    loadAuth();
+    loadDocuments().catch(() => {
+      kbStatus.textContent = "Knowledge base unavailable";
+    });
+    loadAudit();
+  </script>
+</body>
+</html>

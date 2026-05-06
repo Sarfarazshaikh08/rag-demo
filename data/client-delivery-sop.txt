@@ -1,0 +1,21 @@
+Client onboarding must begin only after the signed proposal, NDA, purchase order, and billing contact details are received.
+
+The delivery kickoff call must be scheduled within 2 business days after commercial confirmation.
+
+The project manager must publish the kickoff agenda, stakeholder list, communication plan, and milestone plan before the kickoff call.
+
+Every client delivery project must have a named executive sponsor, project manager, technical owner, and client success owner.
+
+Weekly status reports must include milestone progress, open risks, blockers, decisions needed, and next-week priorities.
+
+Client decisions that affect scope, budget, or timeline must be captured in writing before delivery work continues.
+
+Change requests must include business reason, estimated effort, timeline impact, and commercial impact before approval.
+
+Delivery teams must update the project tracker every Friday before 5:00 PM IST.
+
+Client acceptance requires sign-off on scope completion, test evidence, pending issues, and handover notes.
+
+Post-go-live hypercare runs for 10 business days unless the statement of work defines a different support window.
+
+Project closure requires final documentation, credential handover, knowledge transfer, and finance confirmation.

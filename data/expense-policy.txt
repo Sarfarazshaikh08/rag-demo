@@ -1,0 +1,21 @@
+Expense reimbursement claims must be submitted within 30 days of the expense date.
+
+Original receipts are mandatory for all expense claims above 500 INR.
+
+Meal reimbursement during business travel is capped at 1,200 INR per day.
+
+Domestic travel bookings must be approved by the reporting manager before tickets are purchased.
+
+International travel requires approval from the department head and finance team.
+
+Cab reimbursement is allowed for official travel between office, client location, airport, railway station, and hotel.
+
+Personal expenses, alcohol, tobacco, and entertainment expenses are not reimbursable.
+
+Hotel reimbursement must follow the city-wise limits published by the finance team.
+
+Expense claims are processed every Friday after finance verification.
+
+Advance payments must be settled within 7 working days after travel completion.
+
+Policy violations may result in rejection of the claim and escalation to the reporting manager.

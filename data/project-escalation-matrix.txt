@@ -1,0 +1,19 @@
+A project must be escalated when a milestone is at risk by more than 3 business days.
+
+A project must be escalated when scope changes are requested without written commercial approval.
+
+A project must be escalated when a client blocker remains unresolved for more than 2 business days.
+
+Severity 1 delivery escalations must be reported to the project manager, delivery head, and client sponsor within 1 hour.
+
+Severity 2 delivery escalations must be reported to the project manager and delivery head within 4 business hours.
+
+Severity 3 delivery escalations must be tracked in the weekly status report with owner and due date.
+
+Budget overrun risk above 10 percent must be escalated to finance and the business head.
+
+Resource unavailability for more than 1 business day on a critical path task must be escalated to the delivery head.
+
+Client dissatisfaction or negative executive feedback must be escalated to client success within the same business day.
+
+Escalation closure requires root cause, corrective action, owner, due date, and client communication summary.
