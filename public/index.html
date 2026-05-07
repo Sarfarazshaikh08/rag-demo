@@ -549,6 +549,25 @@
       }
     }
 
+    .hamburger-menu {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--ink);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 8px;
+      margin-right: 12px;
+    }
+
+    .hamburger-menu:hover {
+      opacity: 0.7;
+    }
+
+    .sidebar-overlay {
+      display: none;
+    }
+
     @media (max-width: 820px) {
       .shell {
         display: flex;
@@ -558,12 +577,86 @@
         overflow: visible;
       }
 
+      .hamburger-menu {
+        display: block;
+      }
+
       .sidebar {
-        width: 100%;
-        height: auto;
-        overflow: visible;
+        position: fixed;
+        left: -100%;
+        top: 0;
+        width: 280px;
+        height: 100vh;
+        background: var(--nav);
+        color: white;
         padding: 16px;
-        order: 2;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        overflow-y: auto;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .sidebar.open {
+        left: 0;
+      }
+
+      .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+      }
+
+      .sidebar-overlay.open {
+        display: block;
+      }
+
+      .sidebar-close {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .sidebar-close button {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+      }
+
+      .sidebar-close button:hover {
+        opacity: 0.7;
+      }
+
+      .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        width: 280px;
+        height: 100vh;
+        background: var(--nav);
+        color: white;
+        padding: 16px;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        overflow-y: auto;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+        flex-direction: column;
+        gap: 22px;
+      }
+
+      .sidebar.open {
+        left: 0;
       }
 
       .workspace {
@@ -866,6 +959,7 @@
   </style>
 </head>
 <body>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
@@ -927,6 +1021,7 @@
 
     <main class="workspace">
       <div class="topbar">
+        <button class="hamburger-menu" id="hamburgerBtn" onclick="toggleSidebar()">☰</button>
         <div>
           <h2>Solvagence Enterprise Knowledge Showcase</h2>
           <p class="muted">A reusable assistant for HR, Sales, Delivery, and Support teams with citations, approval metadata, and audit history.</p>
