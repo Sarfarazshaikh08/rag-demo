@@ -553,6 +553,7 @@
       .shell {
         display: flex;
         flex-direction: column;
+        grid-template-columns: unset;
         height: auto;
         overflow: visible;
       }
@@ -596,7 +597,7 @@
       }
 
       .value-strip {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 8px;
       }
 
@@ -617,6 +618,7 @@
       }
 
       .metrics {
+        grid-template-columns: 1fr;
         gap: 8px;
       }
 
@@ -726,7 +728,7 @@
       }
 
       .metrics {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 6px;
       }
 
