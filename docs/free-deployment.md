@@ -34,7 +34,7 @@ Render Free is good for demos, not production:
 - Local filesystem changes are lost after restart/redeploy.
 - Uploaded documents may disappear after restart unless you use external storage.
 
-For a client demo, keep approved seed documents in `data/*.txt` and use uploaded documents only during the live call.
+For a client demo, keep approved seed documents in `backend/data/*.txt` and use uploaded documents only during the live call.
 
 ## Deploy Steps
 
@@ -90,7 +90,7 @@ TTL: 300
 
 Because free hosting has ephemeral storage, use this as a clean demo environment:
 
-- Keep core demo knowledge in `data/*.txt`.
+- Keep core demo knowledge in `backend/data/*.txt`.
 - Avoid uploading sensitive client documents.
 - If the app restarts, re-upload temporary docs during the demo.
 
@@ -100,4 +100,5 @@ When demos become frequent, move to:
 
 - Render paid small instance or low-cost VPS.
 - PostgreSQL for users/documents/audit.
+- PostgreSQL + pgvector for real vector retrieval.
 - S3-compatible storage for originals.

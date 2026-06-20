@@ -6,15 +6,110 @@ const path = require("path");
 const crypto = require("crypto");
 const pdfParse = require("pdf-parse");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 const config = require("./src/config");
 const { comparePassword } = require("./src/security/passwords");
 const objectStorage = require("./src/storage/objectStorage");
 const ocrService = require("./src/ocr/ocrService");
-const { buildApprovedChunkIndex } = require("./src/vector/vectorIndex");
+const {
+  buildContextPack,
+  buildGroundedPrompt,
+  confidenceFromSources,
+  verifyAnswerGrounding
+} = require("./src/rag/advancedRag");
+const {
+  analyzeQuery,
+  buildRetrievalPlan,
+  buildRetrievalStats,
+  diversifyByMmr,
+  scoreHybridCandidate
+} = require("./src/rag/retrievalEngine");
+const { buildApprovedChunkIndex, cosineSimilarity } = require("./src/vector/vectorIndex");
+const vectorRepository = require("./src/repositories/postgresRepository");
 
 const app = express();
 app.use(express.json({ limit: "20mb" }));
-app.use(express.static("public"));
+
+const rateLimitBuckets = new Map();
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/pdf",
+  "application/octet-stream"
+]);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = config.corsOrigin
+    ? config.corsOrigin.split(",").map(item => item.trim()).filter(Boolean)
+    : [];
+
+  if (origin && (allowedOrigins.includes("*") || allowedOrigins.includes(origin))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' https: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:*");
+  next();
+});
+
+function clientKey(req, scope) {
+  return `${scope}:${req.ip || req.socket.remoteAddress || "unknown"}`;
+}
+
+function rateLimit(scope, maxRequests) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = clientKey(req, scope);
+    const bucket = rateLimitBuckets.get(key) || {
+      count: 0,
+      resetAt: now + config.rateLimitWindowMs
+    };
+
+    if (bucket.resetAt <= now) {
+      bucket.count = 0;
+      bucket.resetAt = now + config.rateLimitWindowMs;
+    }
+
+    bucket.count += 1;
+    rateLimitBuckets.set(key, bucket);
+
+    res.setHeader("RateLimit-Limit", String(maxRequests));
+    res.setHeader("RateLimit-Remaining", String(Math.max(maxRequests - bucket.count, 0)));
+    res.setHeader("RateLimit-Reset", String(Math.ceil(bucket.resetAt / 1000)));
+
+    if (bucket.count > maxRequests) {
+      return res.status(429).json({
+        error: "Too many requests. Please retry shortly."
+      });
+    }
+
+    next();
+  };
+}
+
+const frontendDir = fs.existsSync(config.frontendDir)
+  ? config.frontendDir
+  : path.resolve(__dirname, "..", "frontend");
+
+app.use(express.static(frontendDir));
 
 const STORE_PATH = path.join(__dirname, "data", "knowledge-store.json");
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
@@ -26,12 +121,18 @@ const VIEWER_SECRET = process.env.VIEWER_PASSWORD_HASH || process.env.VIEWER_PAS
 const sessions = new Map();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const embeddingAI = process.env.GEMINI_API_KEY
+  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+  : null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 let geminiAvailable = process.env.ENABLE_GEMINI === "true" && Boolean(process.env.GEMINI_API_KEY);
+let semanticRagAvailable = config.enableSemanticRag && Boolean(process.env.GEMINI_API_KEY);
+let embeddingCache = {};
 
 // Demo storage: seed docs come from data/*.txt, uploaded docs persist in data/knowledge-store.json.
 let documents = [];
 let chunkIndex = [];
+let retrievalStats = buildRetrievalStats([]);
 let auditLog = [];
 
 function parseCookies(cookieHeader = "") {
@@ -48,6 +149,25 @@ function parseCookies(cookieHeader = "") {
         ];
       })
   );
+}
+
+function sessionCookie(name, value, options = {}) {
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "HttpOnly",
+    `SameSite=${config.sessionCookieSameSite}`,
+    "Path=/"
+  ];
+
+  if (options.maxAge !== undefined) {
+    parts.push(`Max-Age=${options.maxAge}`);
+  }
+
+  if (config.sessionCookieSecure) {
+    parts.push("Secure");
+  }
+
+  return parts.join("; ");
 }
 
 app.use((req, res, next) => {
@@ -304,6 +424,17 @@ function splitIntoSearchableChunks(content) {
   return chunks;
 }
 
+function classifyEvidence(text = "") {
+  const lower = text.toLowerCase();
+
+  if (/\b(priority|sla|response|resolution|incident)\b/.test(lower)) return "sla";
+  if (/\b(escalat|risk|blocker|breach)\b/.test(lower)) return "escalation";
+  if (/\b(approve|approval|required|must|prohibited|mandatory)\b/.test(lower)) return "policy-control";
+  if (/\b(within|every|before|after|days|hours|deadline|cutoff)\b/.test(lower)) return "timeline";
+  if (/\b(manager|owner|team|head|sponsor|responsible)\b/.test(lower)) return "ownership";
+  return "general";
+}
+
 function chunkDocument(document) {
   return splitIntoSearchableChunks(document.content)
     .map((text, index) => ({
@@ -319,12 +450,111 @@ function chunkDocument(document) {
       useCase: document.useCase,
       page: index + 1,
       text,
+      evidenceType: classifyEvidence(text),
+      contentHash: crypto.createHash("sha256").update(`${document.id}:${document.version}:${index + 1}:${text}`).digest("hex"),
       tokens: tokenize(text)
     }));
 }
 
-function rebuildIndex() {
+function loadEmbeddingCache() {
+  if (!fs.existsSync(config.embeddingCachePath)) {
+    embeddingCache = {};
+    return;
+  }
+
+  try {
+    const raw = fs.readFileSync(config.embeddingCachePath, "utf-8");
+    embeddingCache = JSON.parse(raw);
+  } catch (err) {
+    console.error("Could not load embedding cache:", err.message);
+    embeddingCache = {};
+  }
+}
+
+function saveEmbeddingCache() {
+  if (!semanticRagAvailable) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(config.embeddingCachePath), { recursive: true });
+  fs.writeFileSync(config.embeddingCachePath, JSON.stringify(embeddingCache, null, 2));
+}
+
+function embeddingCacheKey(type, text, title = "") {
+  return crypto
+    .createHash("sha256")
+    .update(`${config.embeddingModel}:${type}:${title}:${text}`)
+    .digest("hex");
+}
+
+async function embedText(text, taskType, title = "") {
+  if (!semanticRagAvailable || !text.trim()) {
+    return null;
+  }
+
+  const key = embeddingCacheKey(taskType, text, title);
+  if (embeddingCache[key]) {
+    return embeddingCache[key];
+  }
+
+  try {
+    if (!embeddingAI) {
+      throw new Error("GEMINI_API_KEY is required for semantic RAG.");
+    }
+
+    const result = await withTimeout(embeddingAI.models.embedContent({
+      model: config.embeddingModel,
+      contents: text,
+      taskType
+    }), 10000);
+
+    const firstEmbedding = Array.isArray(result.embeddings)
+      ? result.embeddings[0]
+      : result.embedding;
+    const values = firstEmbedding && firstEmbedding.values;
+    if (!Array.isArray(values) || !values.length) {
+      throw new Error("Embedding response did not include values.");
+    }
+
+    embeddingCache[key] = values;
+    return values;
+  } catch (err) {
+    semanticRagAvailable = false;
+    console.error(`Semantic RAG disabled after embedding failure (${config.embeddingModel}):`, err.message);
+    return null;
+  }
+}
+
+async function hydrateChunkEmbeddings(chunks) {
+  if (!semanticRagAvailable) {
+    return chunks;
+  }
+
+  for (const chunk of chunks) {
+    chunk.embedding = await embedText(
+      chunk.text,
+      "RETRIEVAL_DOCUMENT",
+      chunk.documentName
+    );
+  }
+
+  saveEmbeddingCache();
+  return chunks;
+}
+
+async function rebuildIndex() {
   chunkIndex = buildApprovedChunkIndex(documents, chunkDocument);
+  retrievalStats = buildRetrievalStats(chunkIndex);
+  await hydrateChunkEmbeddings(chunkIndex);
+
+  if (config.enableVectorDb && semanticRagAvailable) {
+    try {
+      await vectorRepository.replaceRagVectorChunks(chunkIndex, config.embeddingModel);
+      console.log(`Vector DB indexed ${chunkIndex.filter(chunk => chunk.embedding).length} approved chunks`);
+    } catch (err) {
+      console.error("Vector DB indexing failed, using in-process retrieval:", err.message);
+    }
+  }
 }
 
 function loadStoredDocuments() {
@@ -376,8 +606,9 @@ function addDocumentComment(document, actor, role, comment, type = "review") {
 }
 
 // STEP 1: Load approved knowledge base
-function setup() {
+async function setup() {
   const dataDir = path.join(__dirname, "data");
+  loadEmbeddingCache();
 
   documents = fs
     .readdirSync(dataDir)
@@ -413,16 +644,62 @@ function setup() {
     });
 
   documents.push(...loadStoredDocuments());
-  rebuildIndex();
+  await rebuildIndex();
 
   console.log(`Knowledge base loaded with ${documents.length} document(s) and ${chunkIndex.length} searchable chunks`);
+  console.log(`Retrieval mode: ${publicMetrics().retrievalMode}`);
 }
 
-// STEP 2: Deterministic retrieval
-function retrieveRelevantChunks(question, limit = 3, useCase = "All") {
-  const questionTokens = tokenize(question);
-  const queryTerms = new Set(questionTokens);
-  const entityTerms = extractEntityTerms(question);
+function scoreChunkByKeywords(chunk, queryTerms) {
+  let score = 0;
+  const matchedTerms = new Set();
+
+  for (const queryToken of queryTerms) {
+    for (const chunkToken of chunk.tokens) {
+      if (tokenMatches(queryToken, chunkToken)) {
+        matchedTerms.add(queryToken);
+        score += queryToken === chunkToken ? 2 : 1;
+        break;
+      }
+    }
+  }
+
+  score += matchedTerms.size * 2;
+
+  return {
+    keywordScore: score,
+    matchedTerms: matchedTerms.size
+  };
+}
+
+function passesRetrievalGuards(result, queryTerms, entityTerms) {
+  const minimumMatches = queryTerms.size === 1 ? 1 : 2;
+
+  for (const entityTerm of entityTerms) {
+    const hasEntity = result.tokens.some(token => tokenMatches(entityTerm, token));
+    if (!hasEntity) {
+      return false;
+    }
+  }
+
+  for (const priority of ["priority1", "priority2", "priority3"]) {
+    if (queryTerms.has(priority) && !result.tokens.includes(priority)) {
+      return false;
+    }
+  }
+
+  if (result.semanticScore >= config.semanticSimilarityThreshold) {
+    return true;
+  }
+
+  return result.matchedTerms >= minimumMatches && result.keywordScore >= minimumMatches * 3;
+}
+
+// STEP 2: Hybrid semantic + deterministic retrieval
+async function retrieveRelevantChunks(question, limit = 3, useCase = "All") {
+  const query = analyzeQuery(question, tokenize, extractEntityTerms);
+  const queryTerms = query.queryTerms;
+  const entityTerms = query.entityTerms;
 
   if (queryTerms.size === 0) {
     return [];
@@ -432,46 +709,114 @@ function retrieveRelevantChunks(question, limit = 3, useCase = "All") {
     ? chunkIndex.filter(chunk => chunk.useCase === useCase)
     : chunkIndex;
 
-  return searchableChunks
-    .map(chunk => {
-      let score = 0;
-      const matchedTerms = new Set();
+  const queryEmbedding = semanticRagAvailable
+    ? await embedText(question, "QUESTION_ANSWERING")
+    : null;
 
-      for (const queryToken of queryTerms) {
-        for (const chunkToken of chunk.tokens) {
-          if (tokenMatches(queryToken, chunkToken)) {
-            matchedTerms.add(queryToken);
-            score += queryToken === chunkToken ? 2 : 1;
-            break;
-          }
-        }
+  const retrievalMode = config.enableVectorDb && queryEmbedding
+    ? "pgvector-hybrid"
+    : queryEmbedding ? "semantic-hybrid" : "keyword-bm25";
+  const candidatePoolSize = Math.max(limit * 4, config.vectorDbTopK, config.retrievalCandidatePool);
+
+  if (config.enableVectorDb && queryEmbedding) {
+    try {
+      const vectorResults = await vectorRepository.searchRagVectorChunks({
+        embedding: queryEmbedding,
+        embeddingModel: config.embeddingModel,
+        useCase,
+        limit: candidatePoolSize,
+        threshold: config.semanticSimilarityThreshold
+      });
+
+      const rankedVectorResults = vectorResults
+        .map(chunk => {
+          const tokens = tokenize(chunk.text);
+          const scored = scoreHybridCandidate({
+            chunk: {
+              ...chunk,
+              tokens
+            },
+            query,
+            stats: retrievalStats,
+            semanticScore: chunk.semanticScore || 0,
+            useCase,
+            weights: {
+              lexical: config.hybridKeywordWeight,
+              semantic: config.hybridSemanticWeight,
+              metadata: 0.12
+            }
+          });
+
+          return {
+            ...scored,
+            tokens,
+            retrievalMode: "pgvector-hybrid"
+          };
+        })
+        .map(result => ({
+          ...result,
+          matchedTerms: scoreChunkByKeywords(result, queryTerms).matchedTerms
+        }))
+        .filter(result => passesRetrievalGuards(result, queryTerms, entityTerms))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, candidatePoolSize);
+
+      if (rankedVectorResults.length) {
+        const selected = diversifyByMmr(rankedVectorResults, limit);
+        selected.retrievalPlan = buildRetrievalPlan({
+          question,
+          useCase,
+          query,
+          retrievalMode,
+          candidateCount: rankedVectorResults.length,
+          selectedCount: selected.length
+        });
+        return selected;
       }
+    } catch (err) {
+      console.error("Vector DB retrieval failed, using in-process retrieval:", err.message);
+    }
+  }
 
-      score += matchedTerms.size * 2;
+  const ranked = searchableChunks
+    .map(chunk => {
+      const semanticScore = queryEmbedding && chunk.embedding
+        ? cosineSimilarity(queryEmbedding, chunk.embedding)
+        : 0;
+      const scored = scoreHybridCandidate({
+        chunk,
+        query,
+        stats: retrievalStats,
+        semanticScore,
+        useCase,
+        weights: {
+          lexical: queryEmbedding ? config.hybridKeywordWeight : 0.82,
+          semantic: queryEmbedding ? config.hybridSemanticWeight : 0,
+          metadata: queryEmbedding ? 0.12 : 0.18
+        }
+      });
+      const keyword = scoreChunkByKeywords(scored, queryTerms);
 
       return {
-        ...chunk,
-        score,
-        matchedTerms: matchedTerms.size
+        ...scored,
+        matchedTerms: keyword.matchedTerms,
+        retrievalMode
       };
     })
-    .filter(result => {
-      const minimumMatches = queryTerms.size === 1 ? 1 : 2;
-      for (const entityTerm of entityTerms) {
-        const hasEntity = result.tokens.some(token => tokenMatches(entityTerm, token));
-        if (!hasEntity) {
-          return false;
-        }
-      }
-      for (const priority of ["priority1", "priority2", "priority3"]) {
-        if (queryTerms.has(priority) && !result.tokens.includes(priority)) {
-          return false;
-        }
-      }
-      return result.matchedTerms >= minimumMatches && result.score >= minimumMatches * 3;
-    })
+    .filter(result => passesRetrievalGuards(result, queryTerms, entityTerms))
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    .slice(0, candidatePoolSize);
+
+  const selected = diversifyByMmr(ranked, limit);
+  selected.retrievalPlan = buildRetrievalPlan({
+    question,
+    useCase,
+    query,
+    retrievalMode,
+    candidateCount: ranked.length,
+    selectedCount: selected.length
+  });
+  return selected;
 }
 
 function createExtractiveAnswer(question, relevantChunks) {
@@ -493,12 +838,12 @@ function createExtractiveAnswer(question, relevantChunks) {
         }
       }
 
-      return { text: source.text, score };
+      return { text: source.text, score, citationLabel: source.citationLabel };
     })
     .sort((a, b) => b.score - a.score)[0];
 
   return bestChunk && bestChunk.score > 0
-    ? bestChunk.text
+    ? `${bestChunk.text}${bestChunk.citationLabel ? ` [${bestChunk.citationLabel}]` : ""}`
     : "I don't know based on the document.";
 }
 
@@ -544,6 +889,7 @@ function publicDocuments(includeContent = false) {
 
 function publicSources(sources) {
   return sources.map(source => ({
+    citationLabel: source.citationLabel,
     documentId: source.documentId,
     documentName: source.documentName,
     department: source.department,
@@ -552,10 +898,18 @@ function publicSources(sources) {
     reviewedAt: source.reviewedAt,
     approvalStatus: source.approvalStatus,
     useCase: source.useCase,
+    evidenceType: source.evidenceType || "general",
     updatedAt: source.updatedAt,
     page: source.page,
     text: source.text,
-    score: source.score
+    score: source.score,
+    bm25Score: source.bm25Score || 0,
+    semanticScore: source.semanticScore || 0,
+    keywordScore: source.keywordScore || 0,
+    exactBoost: source.exactBoost || 0,
+    metadataBoost: source.metadataBoost || 0,
+    mmrScore: source.mmrScore || 0,
+    retrievalMode: source.retrievalMode || "keyword-bm25"
   }));
 }
 
@@ -570,11 +924,15 @@ function publicMetrics() {
     refusedQuestions: auditLog.filter(entry => entry.status === "No source found").length,
     citationRate: auditLog.length ? Math.round((citedResponses / auditLog.length) * 100) : 100,
     hallucinatedAnswers: 0,
-    answeredQuestions: auditLog.filter(entry => entry.status === "Answered from approved source").length
+    answeredQuestions: auditLog.filter(entry => entry.status === "Answered from approved source").length,
+    retrievalMode: config.enableVectorDb && semanticRagAvailable
+      ? "pgvector-hybrid"
+      : semanticRagAvailable ? "semantic-hybrid" : "keyword-bm25",
+    vectorDbEnabled: config.enableVectorDb
   };
 }
 
-app.post("/auth/login", async (req, res) => {
+app.post("/auth/login", rateLimit("auth", config.authRateLimit), async (req, res) => {
   const { username, password } = req.body;
   const user = await authenticateLocalUser(username, password);
 
@@ -591,7 +949,7 @@ app.post("/auth/login", async (req, res) => {
     createdAt: new Date().toISOString()
   });
 
-  res.setHeader("Set-Cookie", `session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800`);
+  res.setHeader("Set-Cookie", sessionCookie("session", token, { maxAge: 28800 }));
   res.json({
     user: {
       username: user.username,
@@ -600,13 +958,13 @@ app.post("/auth/login", async (req, res) => {
   });
 });
 
-app.post("/auth/logout", (req, res) => {
+app.post("/auth/logout", rateLimit("auth", config.authRateLimit), (req, res) => {
   const cookies = parseCookies(req.headers.cookie);
   if (cookies.session) {
     sessions.delete(cookies.session);
   }
 
-  res.setHeader("Set-Cookie", "session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+  res.setHeader("Set-Cookie", sessionCookie("session", "", { maxAge: 0 }));
   res.json({
     ok: true
   });
@@ -640,15 +998,50 @@ app.get("/health", (req, res) => {
     ok: true,
     documents: documents.length,
     chunks: chunkIndex.length,
-    storageProvider: config.objectStorageProvider
+    frontendDir,
+    storageProvider: config.objectStorageProvider,
+    retrievalMode: publicMetrics().retrievalMode,
+    vectorDbEnabled: config.enableVectorDb,
+    semanticRagEnabled: semanticRagAvailable,
+    generationEnabled: geminiAvailable,
+    embeddingModel: config.embeddingModel,
+    generationModel: GEMINI_MODEL,
+    retrievalCandidatePool: config.retrievalCandidatePool,
+    contextMaxCharacters: config.contextMaxCharacters
+  });
+});
+
+app.get("/api/status", (req, res) => {
+  res.json({
+    name: "Solvagence KnowledgeOps API",
+    architecture: "separate-frontend-backend",
+    retrieval: publicMetrics().retrievalMode,
+    documents: documents.length,
+    chunks: chunkIndex.length,
+    features: {
+      geminiGeneration: geminiAvailable,
+      semanticRag: semanticRagAvailable,
+      vectorDb: config.enableVectorDb,
+      objectStorage: config.objectStorageProvider,
+      ocr: config.ocrEnabled
+    },
+    rag: {
+      candidatePool: config.retrievalCandidatePool,
+      contextMaxCharacters: config.contextMaxCharacters,
+      semanticThreshold: config.semanticSimilarityThreshold,
+      hybridWeights: {
+        semantic: config.hybridSemanticWeight,
+        keyword: config.hybridKeywordWeight
+      }
+    }
   });
 });
 
 app.get(["/rag", "/rag/*"], (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(frontendDir, "index.html"));
 });
 
-app.post("/documents", async (req, res) => {
+app.post("/documents", rateLimit("documents-write", config.authRateLimit), requireReviewerOrAdmin, async (req, res) => {
   const {
     name,
     content,
@@ -663,6 +1056,24 @@ app.post("/documents", async (req, res) => {
   if (!name || (!content && !fileBase64)) {
     return res.status(400).json({
       error: "Document name and content are required"
+    });
+  }
+
+  if (mimeType && !ALLOWED_UPLOAD_MIME_TYPES.has(mimeType) && !/^image\//.test(mimeType)) {
+    return res.status(400).json({
+      error: "Unsupported document type"
+    });
+  }
+
+  if (fileBase64 && Buffer.byteLength(fileBase64, "base64") > config.maxUploadBytes) {
+    return res.status(413).json({
+      error: `Uploaded file exceeds ${config.maxUploadBytes} bytes`
+    });
+  }
+
+  if (content && content.length > config.maxDocumentCharacters) {
+    return res.status(413).json({
+      error: `Document content exceeds ${config.maxDocumentCharacters} characters`
     });
   }
 
@@ -709,6 +1120,12 @@ app.post("/documents", async (req, res) => {
     });
   }
 
+  if (documentContent.length > config.maxDocumentCharacters) {
+    return res.status(413).json({
+      error: `Extracted document text exceeds ${config.maxDocumentCharacters} characters`
+    });
+  }
+
   const document = {
     id: `${Date.now()}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
     name,
@@ -737,7 +1154,7 @@ app.post("/documents", async (req, res) => {
 
   documents.push(document);
   saveStoredDocuments();
-  rebuildIndex();
+  await rebuildIndex();
 
   res.status(201).json({
     document: publicDocuments().find(item => item.id === document.id),
@@ -746,7 +1163,7 @@ app.post("/documents", async (req, res) => {
   });
 });
 
-app.patch("/documents/:id/status", requireAdmin, (req, res) => {
+app.patch("/documents/:id/status", rateLimit("documents-write", config.authRateLimit), requireAdmin, async (req, res) => {
   const { status, comment } = req.body;
   const allowedStatuses = new Set(["Draft", "In Review", "Approved", "Archived"]);
 
@@ -788,7 +1205,7 @@ app.patch("/documents/:id/status", requireAdmin, (req, res) => {
   );
 
   saveStoredDocuments();
-  rebuildIndex();
+  await rebuildIndex();
 
   res.json({
     document: publicDocuments(true).find(item => item.id === document.id),
@@ -796,7 +1213,7 @@ app.patch("/documents/:id/status", requireAdmin, (req, res) => {
   });
 });
 
-app.post("/documents/:id/comments", requireReviewerOrAdmin, (req, res) => {
+app.post("/documents/:id/comments", rateLimit("documents-write", config.authRateLimit), requireReviewerOrAdmin, (req, res) => {
   const { comment } = req.body;
   const document = documents.find(item => item.id === req.params.id);
 
@@ -837,7 +1254,7 @@ app.get("/documents/:id/versions", requireReviewerOrAdmin, (req, res) => {
   });
 });
 
-app.put("/documents/:id", requireAdmin, (req, res) => {
+app.put("/documents/:id", rateLimit("documents-write", config.authRateLimit), requireAdmin, async (req, res) => {
   const document = documents.find(item => item.id === req.params.id);
 
   if (!document) {
@@ -886,7 +1303,7 @@ app.put("/documents/:id", requireAdmin, (req, res) => {
     "edit"
   );
 
-  rebuildIndex();
+  await rebuildIndex();
 
   res.json({
     document: publicDocuments(true).find(item => item.id === document.id),
@@ -894,7 +1311,7 @@ app.put("/documents/:id", requireAdmin, (req, res) => {
   });
 });
 
-app.delete("/documents/:id", requireAdmin, (req, res) => {
+app.delete("/documents/:id", rateLimit("documents-write", config.authRateLimit), requireAdmin, async (req, res) => {
   const document = documents.find(item => item.id === req.params.id);
 
   if (!document) {
@@ -911,7 +1328,7 @@ app.delete("/documents/:id", requireAdmin, (req, res) => {
 
   documents = documents.filter(item => item.id !== req.params.id);
   saveStoredDocuments();
-  rebuildIndex();
+  await rebuildIndex();
 
   res.json({
     ok: true,
@@ -919,7 +1336,7 @@ app.delete("/documents/:id", requireAdmin, (req, res) => {
   });
 });
 
-app.post("/documents/:id/restore/:versionId", requireAdmin, (req, res) => {
+app.post("/documents/:id/restore/:versionId", rateLimit("documents-write", config.authRateLimit), requireAdmin, async (req, res) => {
   const document = documents.find(item => item.id === req.params.id);
 
   if (!document) {
@@ -953,7 +1370,7 @@ app.post("/documents/:id/restore/:versionId", requireAdmin, (req, res) => {
     saveStoredDocuments();
   }
 
-  rebuildIndex();
+  await rebuildIndex();
 
   res.json({
     document: publicDocuments(true).find(item => item.id === document.id),
@@ -983,8 +1400,8 @@ app.get("/audit/export", requireAdmin, (req, res) => {
   res.type("text/csv").send([header, ...rows].join("\n"));
 });
 
-app.post("/admin/reindex", requireAdmin, (req, res) => {
-  rebuildIndex();
+app.post("/admin/reindex", rateLimit("admin-write", config.authRateLimit), requireAdmin, async (req, res) => {
+  await rebuildIndex();
 
   res.json({
     message: "Knowledge base re-indexed",
@@ -993,7 +1410,7 @@ app.post("/admin/reindex", requireAdmin, (req, res) => {
 });
 
 // STEP 3: API
-app.post("/ask", async (req, res) => {
+app.post("/ask", rateLimit("ask", config.askRateLimit), async (req, res) => {
   try {
     const {
       question,
@@ -1008,9 +1425,13 @@ app.post("/ask", async (req, res) => {
       });
     }
 
-    const relevantChunks = retrieveRelevantChunks(question, 3, useCase);
-    const sources = publicSources(relevantChunks);
-    const context = relevantChunks.map(source => source.text).join("\n");
+    const relevantChunks = await retrieveRelevantChunks(question, 5, useCase);
+    const contextPack = buildContextPack(relevantChunks, {
+      maxCharacters: config.contextMaxCharacters
+    });
+    const sources = publicSources(contextPack.selected);
+    const context = contextPack.context;
+    const retrievalPlan = relevantChunks.retrievalPlan || null;
 
     // No context fallback
     if (!context.trim()) {
@@ -1027,11 +1448,14 @@ app.post("/ask", async (req, res) => {
 
       return res.json({
         answer: "I don't know based on the document.",
-        sources: []
+        sources: [],
+        confidence: "none",
+        retrievalTrace: [],
+        retrievalPlan
       });
     }
 
-    let answer = createExtractiveAnswer(question, relevantChunks);
+    let answer = createExtractiveAnswer(question, contextPack.selected);
 
     if (geminiAvailable) {
       try {
@@ -1039,25 +1463,7 @@ app.post("/ask", async (req, res) => {
           model: GEMINI_MODEL
         });
 
-        const prompt = `
-You are a strict AI assistant.
-
-Rules:
-1. Read the context carefully.
-2. If the answer exists in the context, extract it clearly.
-3. Use the exact wording from the context when possible.
-4. If the answer is NOT present, say:
-   "I don't know based on the document."
-5. Do NOT use outside knowledge.
-
-Context:
-${context}
-
-Question:
-${question}
-
-Answer:
-`;
+        const prompt = buildGroundedPrompt({ context, question });
 
         const result = await withTimeout(model.generateContent(prompt), 10000);
 
@@ -1071,6 +1477,11 @@ Answer:
         geminiAvailable = false;
         console.error(`Gemini generation disabled after failure (${GEMINI_MODEL}):`, err.message);
       }
+    }
+
+    const grounding = verifyAnswerGrounding(answer, sources);
+    if (answer !== "I don't know based on the document." && !grounding.grounded) {
+      answer = "I don't know based on the document.";
     }
 
     const status = answer === "I don't know based on the document."
@@ -1092,7 +1503,12 @@ Answer:
       answer,
       sources,
       status,
-      useCase
+      useCase,
+      confidence: confidenceFromSources(relevantChunks),
+      retrievalTrace: contextPack.retrievalTrace,
+      retrievalPlan,
+      grounding,
+      contextTokens: contextPack.estimatedTokens
     });
 
   } catch (err) {
@@ -1103,9 +1519,6 @@ Answer:
     });
   }
 });
-
-// Start server
-setup();
 
 function startServer() {
   const port = config.port;
@@ -1121,12 +1534,21 @@ function startServer() {
   });
 }
 
+const ready = setup();
+
 if (require.main === module) {
-  startServer();
+  ready
+    .then(startServer)
+    .catch(err => {
+      console.error("Startup failed:", err.message);
+      process.exit(1);
+    });
 }
 
 module.exports = {
   app,
+  ready,
+  startServer,
   retrieveRelevantChunks,
   createExtractiveAnswer,
   publicDocuments

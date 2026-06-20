@@ -1,0 +1,1 @@
+window.KNOWLEDGEOPS_API_BASE = window.KNOWLEDGEOPS_API_BASE || "";

@@ -1,5 +1,13 @@
 const db = require("../db/postgres");
 
+function vectorLiteral(values = []) {
+  if (!Array.isArray(values) || !values.length) {
+    throw new Error("Embedding vector is required.");
+  }
+
+  return `[${values.map(value => Number(value).toFixed(8)).join(",")}]`;
+}
+
 function rowToDocument(row) {
   return {
     id: row.id,
@@ -175,11 +183,133 @@ async function replaceApprovedChunks(documentId, versionNo, chunks) {
   });
 }
 
+async function replaceRagVectorChunks(chunks, embeddingModel) {
+  return db.withTransaction(async client => {
+    await client.query(
+      "DELETE FROM rag_vector_chunks WHERE embedding_model = $1",
+      [embeddingModel]
+    );
+
+    for (const chunk of chunks) {
+      if (!chunk.embedding || chunk.approvalStatus !== "Approved") {
+        continue;
+      }
+
+      await client.query(
+        `
+          INSERT INTO rag_vector_chunks (
+            external_document_id, document_name, department, owner_name,
+            use_case, document_version, approval_status, reviewed_at,
+            updated_at, chunk_no, chunk_text, content_hash, embedding_model,
+            embedding, term_vector, metadata
+          )
+          VALUES (
+            $1, $2, $3, $4,
+            $5, $6, 'Approved', $7,
+            $8, $9, $10, $11, $12,
+            $13::vector, $14::jsonb, $15::jsonb
+          )
+          ON CONFLICT (external_document_id, document_version, chunk_no, embedding_model)
+          DO UPDATE SET
+            document_name = EXCLUDED.document_name,
+            department = EXCLUDED.department,
+            owner_name = EXCLUDED.owner_name,
+            use_case = EXCLUDED.use_case,
+            approval_status = EXCLUDED.approval_status,
+            reviewed_at = EXCLUDED.reviewed_at,
+            updated_at = EXCLUDED.updated_at,
+            chunk_text = EXCLUDED.chunk_text,
+            content_hash = EXCLUDED.content_hash,
+            embedding = EXCLUDED.embedding,
+            term_vector = EXCLUDED.term_vector,
+            metadata = EXCLUDED.metadata,
+            created_at = now()
+        `,
+        [
+          chunk.documentId,
+          chunk.documentName,
+          chunk.department,
+          chunk.owner,
+          chunk.useCase,
+          chunk.version,
+          chunk.reviewedAt || null,
+          chunk.updatedAt || null,
+          chunk.page,
+          chunk.text,
+          chunk.contentHash,
+          embeddingModel,
+          vectorLiteral(chunk.embedding),
+          JSON.stringify(chunk.termVector || {}),
+          JSON.stringify({
+            sourcePage: chunk.page,
+            sourceChunkId: chunk.id
+          })
+        ]
+      );
+    }
+  });
+}
+
+async function searchRagVectorChunks({ embedding, embeddingModel, useCase = "All", limit = 5, threshold = 0.62 }) {
+  const result = await db.query(
+    `
+      SELECT
+        external_document_id,
+        document_name,
+        department,
+        owner_name,
+        use_case,
+        document_version,
+        approval_status,
+        reviewed_at,
+        updated_at,
+        chunk_no,
+        chunk_text,
+        1 - (embedding <=> $1::vector) AS semantic_score
+      FROM rag_vector_chunks
+      WHERE embedding_model = $2
+        AND ($3 = 'All' OR use_case = $3)
+        AND 1 - (embedding <=> $1::vector) >= $5
+      ORDER BY embedding <=> $1::vector
+      LIMIT $4
+    `,
+    [
+      vectorLiteral(embedding),
+      embeddingModel,
+      useCase,
+      limit,
+      threshold
+    ]
+  );
+
+  return result.rows.map(row => ({
+    id: `${row.external_document_id}-${row.chunk_no}`,
+    documentId: row.external_document_id,
+    documentName: row.document_name,
+    department: row.department,
+    owner: row.owner_name,
+    useCase: row.use_case,
+    version: row.document_version,
+    approvalStatus: row.approval_status,
+    reviewedAt: row.reviewed_at,
+    updatedAt: row.updated_at,
+    page: row.chunk_no,
+    text: row.chunk_text,
+    semanticScore: Number(row.semantic_score || 0),
+    keywordScore: 0,
+    matchedTerms: 0,
+    score: Number(row.semantic_score || 0),
+    retrievalMode: "pgvector"
+  }));
+}
+
 module.exports = {
   createAuditLog,
   findUserByUsername,
   listDocuments,
   replaceApprovedChunks,
+  replaceRagVectorChunks,
+  searchRagVectorChunks,
   updateDocumentStatus,
   upsertUser
 };

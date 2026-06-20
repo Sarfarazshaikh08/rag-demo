@@ -5,6 +5,28 @@ function termVector(tokens = []) {
   }, {});
 }
 
+function cosineSimilarity(a = [], b = []) {
+  if (!a.length || !b.length || a.length !== b.length) {
+    return 0;
+  }
+
+  let dot = 0;
+  let aNorm = 0;
+  let bNorm = 0;
+
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    aNorm += a[i] * a[i];
+    bNorm += b[i] * b[i];
+  }
+
+  if (!aNorm || !bNorm) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(aNorm) * Math.sqrt(bNorm));
+}
+
 function buildApprovedChunkIndex(documents, chunkDocument) {
   return documents
     .filter(document => document.approvalStatus === "Approved")
@@ -23,5 +45,6 @@ function assertApprovedForIndexing(document) {
 module.exports = {
   assertApprovedForIndexing,
   buildApprovedChunkIndex,
+  cosineSimilarity,
   termVector
 };

@@ -12,12 +12,32 @@ services:
         value: production
       - key: HOST
         value: 0.0.0.0
+      - key: FRONTEND_DIR
+        value: frontend
       - key: ENABLE_GEMINI
         value: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
       - key: GEMINI_API_KEY
         sync: false
+      - key: ENABLE_SEMANTIC_RAG
+        value: true
+      - key: EMBEDDING_MODEL
+        value: gemini-embedding-001
+      - key: SEMANTIC_SIMILARITY_THRESHOLD
+        value: 0.62
+      - key: RETRIEVAL_CANDIDATE_POOL
+        value: 16
+      - key: CONTEXT_MAX_CHARACTERS
+        value: 5200
+      - key: MAX_UPLOAD_BYTES
+        value: 10485760
+      - key: MAX_DOCUMENT_CHARACTERS
+        value: 250000
+      - key: ASK_RATE_LIMIT
+        value: 30
+      - key: AUTH_RATE_LIMIT
+        value: 20
       - key: OBJECT_STORAGE_PROVIDER
         value: local
       - key: OCR_ENABLED

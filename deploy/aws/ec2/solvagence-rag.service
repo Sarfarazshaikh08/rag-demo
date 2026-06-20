@@ -1,0 +1,18 @@
+[Unit]
+Description=Solvagence KnowledgeOps RAG Backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/solvagence-rag
+EnvironmentFile=/etc/solvagence-rag/backend.env
+ExecStart=/usr/bin/node backend/index.js
+Restart=always
+RestartSec=5
+User=solvagence
+Group=solvagence
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

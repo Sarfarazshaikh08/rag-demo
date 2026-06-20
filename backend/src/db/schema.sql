@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,6 +71,28 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   UNIQUE (document_id, version_no, chunk_no)
 );
 
+CREATE TABLE IF NOT EXISTS rag_vector_chunks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  external_document_id text NOT NULL,
+  document_name text NOT NULL,
+  department text NOT NULL,
+  owner_name text NOT NULL,
+  use_case text NOT NULL,
+  document_version text NOT NULL,
+  approval_status text NOT NULL CHECK (approval_status = 'Approved'),
+  reviewed_at text,
+  updated_at text,
+  chunk_no integer NOT NULL,
+  chunk_text text NOT NULL,
+  content_hash text NOT NULL,
+  embedding_model text NOT NULL,
+  embedding vector(3072) NOT NULL,
+  term_vector jsonb NOT NULL DEFAULT '{}'::jsonb,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (external_document_id, document_version, chunk_no, embedding_model)
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES users(id),
@@ -87,4 +110,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (approval_status);
 CREATE INDEX IF NOT EXISTS idx_documents_use_case ON documents (use_case);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document ON document_chunks (document_id);
+CREATE INDEX IF NOT EXISTS idx_rag_vector_chunks_use_case ON rag_vector_chunks (use_case);
+CREATE INDEX IF NOT EXISTS idx_rag_vector_chunks_doc ON rag_vector_chunks (external_document_id);
+CREATE INDEX IF NOT EXISTS idx_rag_vector_chunks_embedding_hnsw
+  ON rag_vector_chunks
+  USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);

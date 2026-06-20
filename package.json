@@ -1,15 +1,23 @@
 {
   "name": "rag-demo",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "backend/index.js",
   "scripts": {
-    "start": "node index.js",
-    "db:init": "node scripts/init-db.js",
-    "db:seed-users": "node scripts/seed-users.js",
-    "password:hash": "node scripts/hash-password.js"
+    "start": "node backend/index.js",
+    "backend:start": "node backend/src/index.js",
+    "backend:dev": "CORS_ORIGIN=http://127.0.0.1:5173,http://localhost:5173 node backend/src/index.js",
+    "frontend:build": "node frontend/build.js",
+    "frontend:start": "node frontend/dev-server.js",
+    "frontend:deploy:s3": "npm run frontend:build && node frontend/deploy-s3.js",
+    "dev": "npm run backend:dev",
+    "test:smoke": "node backend/scripts/smoke-test.js",
+    "db:init": "node backend/scripts/init-db.js",
+    "db:seed-users": "node backend/scripts/seed-users.js",
+    "password:hash": "node backend/scripts/hash-password.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1043.0",
+    "@google/genai": "^2.2.0",
     "@google/generative-ai": "^0.1.3",
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.0.0",
