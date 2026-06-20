@@ -2,7 +2,7 @@
 
 This guide deploys:
 
-- Frontend: static files from `frontend/dist` to Amazon S3 static website hosting.
+- Frontend: static files from `frontend/dist` to Amazon S3 static website hosting, optionally under a prefix such as `/rag`.
 - Backend: Node/Express API from `backend/index.js` on an EC2 instance.
 
 AWS references:
@@ -47,6 +47,13 @@ frontend/dist/solvagence-logo.png
 window.KNOWLEDGEOPS_API_BASE = "https://api.example.com";
 ```
 
+The frontend uses relative asset paths, so it can be hosted at the domain root or under a path:
+
+```text
+https://demo.solvagence.com/
+https://demo.solvagence.com/rag/
+```
+
 ## 3. Create S3 Static Website
 
 Create a bucket:
@@ -79,9 +86,24 @@ Deploy:
 
 ```bash
 S3_FRONTEND_BUCKET=<frontend-bucket-name> \
+S3_FRONTEND_PREFIX=rag \
 FRONTEND_API_BASE=https://api.example.com \
 npm run frontend:deploy:s3
 ```
+
+With `S3_FRONTEND_PREFIX=rag`, files are uploaded to:
+
+```text
+s3://<frontend-bucket-name>/rag/
+```
+
+Use this for:
+
+```text
+https://demo.solvagence.com/rag/
+```
+
+Important: plain S3 website hosting and browsers treat `/rag` and `/rag/` differently. For the clean URL `https://demo.solvagence.com/rag`, configure CloudFront to redirect `/rag` to `/rag/` or rewrite `/rag` to `/rag/index.html`.
 
 ## 4. Prepare EC2
 

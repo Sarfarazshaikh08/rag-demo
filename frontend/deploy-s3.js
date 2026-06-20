@@ -2,6 +2,7 @@ const { spawnSync } = require("child_process");
 const path = require("path");
 
 const bucket = process.env.S3_FRONTEND_BUCKET;
+const prefix = (process.env.S3_FRONTEND_PREFIX || "").replace(/^\/+|\/+$/g, "");
 const distDir = path.join("frontend", "dist");
 
 if (!bucket) {
@@ -21,11 +22,15 @@ function run(command, args) {
   }
 }
 
+const target = prefix
+  ? `s3://${bucket}/${prefix}`
+  : `s3://${bucket}`;
+
 run("aws", [
   "s3",
   "sync",
   distDir,
-  `s3://${bucket}`,
+  target,
   "--delete",
   "--cache-control",
   "no-cache"

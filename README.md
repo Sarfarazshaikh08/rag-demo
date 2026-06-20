@@ -63,8 +63,13 @@ FRONTEND_API_BASE=https://api.example.com npm run frontend:build
 Upload to S3:
 
 ```bash
-S3_FRONTEND_BUCKET=<bucket-name> FRONTEND_API_BASE=https://api.example.com npm run frontend:deploy:s3
+S3_FRONTEND_BUCKET=<bucket-name> \
+S3_FRONTEND_PREFIX=rag \
+FRONTEND_API_BASE=https://api.example.com \
+npm run frontend:deploy:s3
 ```
+
+For an S3/CloudFront frontend at `https://demo.solvagence.com/rag`, deploy with `S3_FRONTEND_PREFIX=rag`. Prefer opening `https://demo.solvagence.com/rag/` or configure CloudFront to rewrite `/rag` to `/rag/index.html`.
 
 ## Real RAG Mode
 
